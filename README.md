@@ -3,7 +3,8 @@
 A thumbnail provider for Windows Explorer that makes JPEG XL thumbnails from the
 small preview image every lossy JXL already carries at the start of the file,
 instead of decoding the whole photo. On 24–45 MP photo archives, thumbnails come
-out in a fraction of the time and read only the first few percent of each file.
+out about 15× faster than with the Microsoft JPEG XL extension, and only the
+first few percent of each file is read.
 
 **Current version: v0.1.0** (2026-10-21) · [All releases](docs/version_history.md) · [How it works](docs/how_it_works.md)
 
@@ -68,15 +69,16 @@ on fresh copies (`thumbtest shell`), 32-thread desktop, files already in the
 disk cache — so the time saved on reading from a hard disk is **not** in these
 numbers:
 
-| | Previous handler (jxl-winthumb WIC decoder) | **jxl-thumb** |
-|---|---|---|
-| All 12 photos | 10.3 s | **1.46 s** |
-| 24 MP master, per photo | 380–830 ms | **65–190 ms** |
-| 45 MP photo, per photo | 1.08–1.17 s | **120–155 ms** |
-| Read from each file | all of it | **6.5 %** (24 MP master), **12 %** (45 MP) |
+| | Microsoft JPEG XL extension 1.2.50 | jxl-winthumb (WIC decoder) | **jxl-thumb** |
+|---|---|---|---|
+| All 12 photos | 22.9 s | 10.3 s | **1.46 s** |
+| 24 MP master, per photo | 1.0–1.8 s | 0.38–0.83 s | **65–190 ms** |
+| 45 MP photo, per photo | 2.2–2.6 s | 1.08–1.17 s | **120–155 ms** |
+| Read from each file | all of it | all of it | **6.5 %** (24 MP), **12 %** (45 MP) |
 
-The Microsoft JPEG XL extension was measured earlier on the same kind of
-24 MP file at about 1.4 s per thumbnail.
+Each column ran on its own fresh copy of the files, and the DLL Windows
+actually loaded for it was checked in the thumbnail process. A first run of the Microsoft extension took 33 s, with two
+photos at 5 and 8 s; the table shows the second, steadier run.
 
 Other files (`thumbtest direct`, 256 px):
 
