@@ -1,0 +1,9 @@
+# Build output and downloaded dependencies
+build/
+deps/
+dist/
+
+# Local tools / AI notes
+.claude/
+.vscode/
+AI_tools/
