@@ -34,6 +34,11 @@ how [jxl-photo](https://github.com/rsilvabr/jxl-photo) writes its masters.
   `src/jxl_thumb.cpp` sets the rule.
 - **The image is already small** (long side ≤ the requested size).
 
+Explorer's preview pane has no JPEG XL preview handler to call (the
+Microsoft extension registers none), so it asks the thumbnail provider for a
+large image, the size of the pane. Those requests usually exceed the DC and
+take the full-decode path.
+
 In all these cases libjxl decodes the first frame completely, with up to
 `MAX_THREADS` threads.
 

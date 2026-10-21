@@ -3,8 +3,9 @@
 A thumbnail provider for Windows Explorer that makes JPEG XL thumbnails from the
 small preview image every lossy JXL already carries at the start of the file,
 instead of decoding the whole photo. On 24–45 MP photo archives, thumbnails come
-out about 15× faster than with the Microsoft JPEG XL extension, and only the
-first few percent of each file is read.
+out about 14× faster than with the Microsoft JPEG XL extension, in the right
+colours for wide-gamut (ProPhoto, Adobe RGB, P3) files, and only the first few
+percent of each file is read.
 
 **Current version: v0.1.0** (2026-10-21) · [All releases](docs/version_history.md) · [How it works](docs/how_it_works.md)
 
@@ -58,27 +59,37 @@ image — the "DC" — before the fine detail. For a 6048 × 4032 photo that is 
 - **Per-user install, no admin rights.** Uninstalling gives Explorer back the
   handler it had before.
 
-It only replaces the **thumbnail**. The preview pane, the Photos app and the
-Properties dialog keep using whatever JPEG XL support Windows has.
+**The preview pane too.** No JPEG XL preview handler is registered by the
+Microsoft extension, so Explorer's preview pane shows the thumbnail at a large
+size — which now comes from jxl-thumb, fast and with the right colours. The
+Photos app and other programs keep using whatever JPEG XL support they have.
 
 ## Measured
 
-Twelve real photos (6 × 24 MP masters at `d=0.05`, 6 × 45 MP copies at
-`d=0.5`, ProPhoto RGB), 256 px thumbnails requested through the Windows shell
-on fresh copies (`thumbtest shell`), 32-thread desktop, files already in the
-disk cache — so the time saved on reading from a hard disk is **not** in these
-numbers:
+Sixteen real photo masters — 4 each from a Nikon Zf (25 MP), D810 (36 MP),
+Z7 and Z8 (45 MP), exported in ProPhoto RGB and encoded at `d=0.05` (11–56 MB
+each) — requested through the Windows shell on fresh copies
+(`thumbtest shell`), 32-thread desktop, files already in the disk cache (so
+the time saved on reading from a hard disk is **not** in these numbers):
 
-| | Microsoft JPEG XL extension 1.2.50 | jxl-winthumb (WIC decoder) | **jxl-thumb** |
-|---|---|---|---|
-| All 12 photos | 22.9 s | 10.3 s | **1.46 s** |
-| 24 MP master, per photo | 1.0–1.8 s | 0.38–0.83 s | **65–190 ms** |
-| 45 MP photo, per photo | 2.2–2.6 s | 1.08–1.17 s | **120–155 ms** |
-| Read from each file | all of it | all of it | **6.5 %** (24 MP), **12 %** (45 MP) |
+| Per photo (average) | Microsoft JPEG XL extension 1.2.50 | **jxl-thumb** |
+|---|---|---|
+| Zf, 25 MP | 1.08 s | **67 ms** |
+| D810, 36 MP | 2.09 s | **146 ms** |
+| Z7, 45 MP | 3.17 s | **160 ms** |
+| Z8, 45 MP | 2.86 s | **154 ms** |
+| **All 16, 256 px thumbnails** | **36.9 s** | **2.6 s** |
+| All 16, 1024 px (preview-pane size) | 36.9 s | 3.4 s |
+| Read from each file | all of it | 5–15 % at 256 px |
 
-Each column ran on its own fresh copy of the files, and the DLL Windows
-actually loaded for it was checked in the thumbnail process. A first run of the Microsoft extension took 33 s, with two
-photos at 5 and 8 s; the table shows the second, steadier run.
+At 1024 px the DC of a 25–36 MP photo is too small, so jxl-thumb decodes the
+whole photo — still about 12× faster than the extension, which takes the same
+time at any size because it always decodes everything. The DLL Windows loaded
+for each run was checked in the thumbnail process.
+
+An earlier run on 12 other photos (24 MP at `d=0.05`, 45 MP at `d=0.5`) also
+measured jxl-winthumb, a third-party WIC decoder: 22.9 s (Microsoft), 10.3 s
+(jxl-winthumb), 1.46 s (jxl-thumb).
 
 Other files (`thumbtest direct`, 256 px):
 
@@ -97,8 +108,8 @@ sRGB by ImageMagick) at 44 dB PSNR.
 - Windows 10 or 11, 64-bit.
 - Nothing else: libjxl is built into the DLL.
 - It works alongside the Microsoft JPEG XL extension (or without it). With the
-  extension installed, Windows still opens and previews JXLs with it; jxl-thumb
-  only takes over the thumbnails.
+  extension installed, Windows still opens JXLs with it; jxl-thumb only takes
+  over the thumbnails (and with them the preview pane).
 
 ## Install
 
@@ -149,9 +160,9 @@ Either way *all* thumbnails (not only JXL) are rebuilt as you browse.
   get the fast path.
 - **HDR images** (PQ/HLG) are converted to sRGB without tone mapping: their
   thumbnails can look flat or clipped.
-- **Very large thumbnail sizes** (Explorer's "Extra large icons" on a high-DPI
-  screen can ask for 768–1024 px) may be bigger than the DC of a 24 MP photo;
-  those are decoded in full.
+- **The preview pane and very large icons** ask for big images (often
+  768–1600 px), larger than the DC of most photos; those are decoded in full —
+  about a quarter of a second for a 45 MP photo.
 - Explorer runs thumbnail handlers in a separate process (`dllhost.exe`), so a
   damaged file cannot crash Explorer itself.
 

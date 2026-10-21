@@ -13,8 +13,10 @@ keeps a short summary of the current release.
 
 *2026-10-21*
 
-First version. On 12 real 24–45 MP photos, thumbnails took 1.46 s against
-22.9 s with the Microsoft JPEG XL extension 1.2.50 (README, "Measured").
+First version. On 16 real 25–45 MP masters (`d=0.05`), thumbnails took
+2.6 s against 36.9 s with the Microsoft JPEG XL extension 1.2.50 (README,
+"Measured"). Explorer's preview pane uses the same provider, so it gets
+faster and colour-correct too.
 
 - **Thumbnails from the DC image.** For lossy (VarDCT) JPEG XL files the
   thumbnail is built from the 1:8 image stored at the start of the codestream;
