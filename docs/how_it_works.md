@@ -53,7 +53,8 @@ A trace of Explorer's thumbnail process showed it asking for one thumbnail at
 a time, from one thread. So the time of a single thumbnail is what you wait
 for, and each one gets up to 16 decoder threads (`MAX_THREADS`; fewer on a CPU
 with fewer logical cores). On a 32-thread CPU, 16 threads made a 25–45 MP
-thumbnail about 25 % faster than 8; more than 16 gained nothing.
+thumbnail about 25 % faster than 8; more than 16 gained nothing. The
+measurements are in [Performance notes](performance.md).
 
 ## Colour
 

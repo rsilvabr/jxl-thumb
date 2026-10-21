@@ -31,6 +31,8 @@ of 3.6 s at 1024 px (preview-pane size).
   are byte-identical to v0.1.0's.
 - Lossless and modular files gain from the threads too (16 MP lossless: 110 ms,
   was ~200 ms).
+- Every measurement behind these changes, including what did not help, is in
+  [Performance notes](performance.md).
 
 ---
 

@@ -7,7 +7,7 @@ out about 40× faster than with the Microsoft JPEG XL extension, in the right
 colours for wide-gamut (ProPhoto, Adobe RGB, P3) files, and only about a tenth
 of each file is read.
 
-**Current version: v0.1.1** (2026-10-22) · [All releases](docs/version_history.md) · [How it works](docs/how_it_works.md)
+**Current version: v0.1.1** (2026-10-22) · [All releases](docs/version_history.md) · [How it works](docs/how_it_works.md) · [Performance notes](docs/performance.md)
 
 ---
 
