@@ -34,18 +34,26 @@
 // Settings
 // ---------------------------------------------------------------------------
 
-// Bytes read from the file per step. The DC of a 24 MP master ends ~1.3 MB in,
-// so small steps keep the read close to it...
-static const ULONG READ_CHUNK = 256 * 1024;
-// ...until this much has been read without reaching the DC: from there each
-// step doubles, up to READ_CHUNK_MAX. Feeding libjxl a large file in small
-// steps is slow (a 73 MB lossless file: 438 ms in 64 KB steps, 84 ms at once).
-static const ULONG READ_GROW_AFTER = 2 * 1024 * 1024;
+// The first read takes this fraction of the file (1/10), within the bounds
+// below. The DC of a d=0.05 master ends 5-10 % in, so one read usually holds
+// all of it, and libjxl then decodes its groups in parallel; fed in small
+// steps it decodes them one by one (84 ms instead of 25 ms on a 45 MP master).
+static const ULONG READ_FIRST_DIVISOR = 10;
+static const ULONG READ_FIRST_MIN = 1024 * 1024;
+static const ULONG READ_FIRST_MAX = 16 * 1024 * 1024;
+// Each further read doubles, up to this. A full decode reads this much at a
+// time (a 73 MB lossless file: 438 ms in 64 KB steps, 84 ms at once).
 static const ULONG READ_CHUNK_MAX = 64 * 1024 * 1024;
 
-// Upper bound on decoder threads per thumbnail. Explorer extracts several
-// thumbnails at once, so all cores per file would only oversubscribe the CPU.
-static const size_t MAX_THREADS = 8;
+// Upper bound on decoder threads per thumbnail. Explorer asks for one
+// thumbnail at a time, so a file can have the cores; past 16 threads the
+// decode gets no faster (measured on a 32-thread CPU).
+static const size_t MAX_THREADS = 16;
+
+// When the 1:8 DC is rendered, libjxl upsamples it to full size; summing every
+// 2nd row and column of that takes a third off the render step and stays
+// within ~0.6 dB of summing all of it. Full decodes always use every pixel.
+static const size_t DC_SAMPLE_STEP = 2;
 
 // Use the 1:8 DC image when its long side is at least this many times the
 // requested size (1.0 = the DC is used whenever it has enough pixels).
@@ -74,10 +82,12 @@ static std::atomic<long> g_locks{0};
 struct Downscaler {
   size_t src_w = 0, src_h = 0;    // oriented image size, as the callback sees it
   size_t dst_w = 0, dst_h = 0;
-  size_t channels = 4;            // 4 = RGBA, 2 = gray + alpha
+  size_t channels = 4;            // 4 = RGBA, 3 = RGB, 2 = gray + alpha
+  size_t step = 1;                // sum every step-th row and column
   std::vector<uint32_t> xmap;     // source column -> destination column
   std::vector<uint32_t> ymap;     // source row -> destination row
   // Per destination pixel: sum(r*a), sum(g*a), sum(b*a), sum(a), count
+  // (RGB: sum(r), sum(g), sum(b), unused, count)
   std::vector<uint64_t> sums;
   std::vector<SRWLOCK> row_locks;
   std::atomic<bool> wrote{false};
@@ -99,20 +109,28 @@ struct Downscaler {
 
   static void Run(void* opaque, size_t, size_t x, size_t y, size_t n, const void* pixels) {
     auto* self = static_cast<Downscaler*>(opaque);
-    if (y >= self->src_h || x >= self->src_w) return;
+    const size_t step = self->step;
+    if (y >= self->src_h || x >= self->src_w || y % step) return;
     const size_t dy = self->ymap[y];
     uint64_t* row = self->sums.data() + dy * self->dst_w * 5;
-    const uint8_t* p = static_cast<const uint8_t*>(pixels);
+    const size_t ch = self->channels;
+    const size_t first = (x + step - 1) / step * step;  // first sampled column
+    const uint8_t* p = static_cast<const uint8_t*>(pixels) + (first - x) * ch;
     const size_t end = std::min(x + n, self->src_w);
     AcquireSRWLockExclusive(&self->row_locks[dy]);
-    if (self->channels == 4) {
-      for (size_t i = x; i < end; ++i, p += 4) {
+    if (ch == 3) {
+      for (size_t i = first; i < end; i += step, p += 3 * step) {
+        uint64_t* s = row + size_t(self->xmap[i]) * 5;
+        s[0] += p[0]; s[1] += p[1]; s[2] += p[2]; s[4] += 1;
+      }
+    } else if (ch == 4) {
+      for (size_t i = first; i < end; i += step, p += 4 * step) {
         uint64_t* s = row + size_t(self->xmap[i]) * 5;
         const uint64_t a = p[3];
         s[0] += p[0] * a; s[1] += p[1] * a; s[2] += p[2] * a; s[3] += a; s[4] += 1;
       }
     } else {
-      for (size_t i = x; i < end; ++i, p += 2) {
+      for (size_t i = first; i < end; i += step, p += 2 * step) {
         uint64_t* s = row + size_t(self->xmap[i]) * 5;
         const uint64_t a = p[1];
         const uint64_t g = p[0] * a;
@@ -143,6 +161,13 @@ struct Downscaler {
       const uint64_t* t = sums.data() + i * 5;
       uint8_t* o = out + i * 4;
       if (t[4] == 0) { o[0] = o[1] = o[2] = o[3] = 0; continue; }
+      if (channels == 3) {
+        o[0] = static_cast<uint8_t>((t[2] + t[4] / 2) / t[4]);
+        o[1] = static_cast<uint8_t>((t[1] + t[4] / 2) / t[4]);
+        o[2] = static_cast<uint8_t>((t[0] + t[4] / 2) / t[4]);
+        o[3] = 255;
+        continue;
+      }
       const uint64_t d = t[4] * 255;  // premultiplied: sum(c*a) / (count*255)
       o[0] = static_cast<uint8_t>((t[2] + d / 2) / d);
       o[1] = static_cast<uint8_t>((t[1] + d / 2) / d);
@@ -189,7 +214,12 @@ static HRESULT DecodeThumbnail(IStream* stream, UINT cx, HBITMAP* out_bmp,
   JxlBasicInfo info = {};
   bool use_dc = false, have_info = false, have_output = false, input_set = false, eof = false;
   std::vector<uint8_t> buf;
-  ULONG chunk = READ_CHUNK;
+  ULONG chunk = READ_FIRST_MIN;
+  STATSTG stat = {};
+  if (SUCCEEDED(stream->Stat(&stat, STATFLAG_NONAME)))
+    chunk = static_cast<ULONG>(
+        std::clamp<unsigned long long>(stat.cbSize.QuadPart / READ_FIRST_DIVISOR,
+                                       READ_FIRST_MIN, READ_FIRST_MAX));
   unsigned long long total_read = 0;
 
   for (;;) {
@@ -201,9 +231,9 @@ static HRESULT DecodeThumbnail(IStream* stream, UINT cx, HBITMAP* out_bmp,
       if (keep) std::memmove(buf.data(), buf.data() + buf.size() - keep, keep);
       ULONG got = 0;
       if (!eof) {
-        // Small steps only while the DC may be near; a full decode reads big.
+        // A full decode reads big; while the DC may be near, each read doubles.
         if (have_info && !use_dc) chunk = READ_CHUNK_MAX;
-        else if (total_read >= READ_GROW_AFTER) chunk = std::min(chunk * 2, READ_CHUNK_MAX);
+        else if (total_read) chunk = std::min(chunk * 2, READ_CHUNK_MAX);
         buf.resize(keep + chunk);
         if (FAILED(stream->Read(buf.data() + keep, chunk, &got))) got = 0;
         if (got == 0) eof = true;
@@ -230,7 +260,7 @@ static HRESULT DecodeThumbnail(IStream* stream, UINT cx, HBITMAP* out_bmp,
       size_t dw, dh;
       if (w >= h) { dw = target; dh = std::max<size_t>(1, (h * target + w / 2) / w); }
       else        { dh = target; dw = std::max<size_t>(1, (w * target + h / 2) / h); }
-      ds.channels = info.num_color_channels == 1 ? 2 : 4;
+      ds.channels = info.num_color_channels == 1 ? 2 : info.alpha_bits ? 4 : 3;
       ds.Setup(w, h, dw, dh);
       use_dc = (long_side + 7) / 8 >= DC_MIN_RATIO * target && long_side > target;
       have_info = true;
@@ -263,7 +293,14 @@ static HRESULT DecodeThumbnail(IStream* stream, UINT cx, HBITMAP* out_bmp,
     }
 
     if (st == JXL_DEC_FRAME_PROGRESSION) {
-      if (use_dc && JxlDecoderFlushImage(dec) == JXL_DEC_SUCCESS && ds.wrote) break;
+      if (use_dc) {
+        // Only the DC is rendered here (a lossless file never gets this far,
+        // so its real full-resolution pixels are all summed).
+        ds.step = std::max<size_t>(1, std::min({DC_SAMPLE_STEP, ds.src_w / ds.dst_w,
+                                                ds.src_h / ds.dst_h}));
+        if (JxlDecoderFlushImage(dec) == JXL_DEC_SUCCESS && ds.wrote) break;
+        ds.step = 1;  // no DC after all: the full decode that follows sums every pixel
+      }
       continue;
     }
 

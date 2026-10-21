@@ -2,12 +2,12 @@
 
 A thumbnail provider for Windows Explorer that makes JPEG XL thumbnails from the
 small preview image every lossy JXL already carries at the start of the file,
-instead of decoding the whole photo. On 24–45 MP photo archives, thumbnails come
-out about 14× faster than with the Microsoft JPEG XL extension, in the right
-colours for wide-gamut (ProPhoto, Adobe RGB, P3) files, and only the first few
-percent of each file is read.
+instead of decoding the whole photo. On 25–45 MP photo archives, thumbnails come
+out about 40× faster than with the Microsoft JPEG XL extension, in the right
+colours for wide-gamut (ProPhoto, Adobe RGB, P3) files, and only about a tenth
+of each file is read.
 
-**Current version: v0.1.0** (2026-10-21) · [All releases](docs/version_history.md) · [How it works](docs/how_it_works.md)
+**Current version: v0.1.1** (2026-10-22) · [All releases](docs/version_history.md) · [How it works](docs/how_it_works.md)
 
 ---
 
@@ -47,6 +47,8 @@ image — the "DC" — before the fine detail. For a 6048 × 4032 photo that is 
 - **Works on the files you already have.** The DC is always stored first in a
   VarDCT JXL; no re-encode and no special `cjxl` option (such as
   `--progressive_dc`) is needed.
+- **Uses the cores** — Explorer asks for one thumbnail at a time, so each one
+  is decoded with up to 16 threads.
 - **Falls back to a full decode** (multi-threaded libjxl) when the DC is not
   enough: lossless/modular files, small images, or a thumbnail larger than the
   DC.
@@ -72,20 +74,21 @@ each) — requested through the Windows shell on fresh copies
 (`thumbtest shell`), 32-thread desktop, files already in the disk cache (so
 the time saved on reading from a hard disk is **not** in these numbers):
 
-| Per photo (average) | Microsoft JPEG XL extension 1.2.50 | **jxl-thumb** |
+| Per photo (average) | Microsoft JPEG XL extension 1.2.50 | **jxl-thumb 0.1.1** |
 |---|---|---|
-| Zf, 25 MP | 1.08 s | **67 ms** |
-| D810, 36 MP | 2.09 s | **146 ms** |
-| Z7, 45 MP | 3.17 s | **160 ms** |
-| Z8, 45 MP | 2.86 s | **154 ms** |
-| **All 16, 256 px thumbnails** | **36.9 s** | **2.6 s** |
-| All 16, 1024 px (preview-pane size) | 36.9 s | 3.4 s |
-| Read from each file | all of it | 5–15 % at 256 px |
+| Zf, 25 MP | 1.08 s | **36 ms** |
+| D810, 36 MP | 2.09 s | **66 ms** |
+| Z7, 45 MP | 3.17 s | **62 ms** |
+| Z8, 45 MP | 2.86 s | **56 ms** |
+| **All 16, 256 px thumbnails** | **36.9 s** | **0.91 s** |
+| All 16, 1024 px (preview-pane size) | 36.9 s | 2.6 s |
+| Read from each file | all of it | about 10 % at 256 px |
 
 At 1024 px the DC of a 25–36 MP photo is too small, so jxl-thumb decodes the
-whole photo — still about 12× faster than the extension, which takes the same
+whole photo — still about 14× faster than the extension, which takes the same
 time at any size because it always decodes everything. The DLL Windows loaded
-for each run was checked in the thumbnail process.
+for each run was checked in the thumbnail process. (v0.1.0, measured the same
+way: 2.2 s and 3.6 s.)
 
 An earlier run on 12 other photos (24 MP at `d=0.05`, 45 MP at `d=0.5`) also
 measured jxl-winthumb, a third-party WIC decoder: 22.9 s (Microsoft), 10.3 s
@@ -95,13 +98,16 @@ Other files (`thumbtest direct`, 256 px):
 
 | File | Time | Read |
 |---|---|---|
-| 2048 px, `d=3` (a phone-size copy) | 29 ms | 47 % |
-| JPEG transcoded to JXL (`cjxl photo.jpg`) | 30 ms | 15 % |
-| 16 MP lossless (`d=0`, no DC → full decode) | 216 ms | 100 % |
-| 24 MP lossy modular (`-m 1`, no DC → full decode) | 830 ms | 100 % |
+| 2048 px, `d=3` (a phone-size copy) | 23 ms | 100 % (0.56 MB) |
+| JPEG transcoded to JXL (`cjxl photo.jpg`) | 23 ms | 61 % (1 MB) |
+| 16 MP lossless (`d=0`, no DC → full decode) | 110 ms | 100 % |
+| 24 MP lossy modular (`-m 1`, no DC → full decode) | 560 ms | 100 % |
+
+The first read is a tenth of the file and at least 1 MB, so small files are
+read whole in one go.
 
 Thumbnails match an independent reference (the original TIFF converted to
-sRGB by ImageMagick) at 44 dB PSNR.
+sRGB by ImageMagick) at 43 dB PSNR.
 
 ## Requirements
 
@@ -162,7 +168,7 @@ Either way *all* thumbnails (not only JXL) are rebuilt as you browse.
   thumbnails can look flat or clipped.
 - **The preview pane and very large icons** ask for big images (often
   768–1600 px), larger than the DC of most photos; those are decoded in full —
-  about a quarter of a second for a 45 MP photo.
+  about 0.2 s for a 45 MP photo.
 - Explorer runs thumbnail handlers in a separate process (`dllhost.exe`), so a
   damaged file cannot crash Explorer itself.
 
@@ -181,7 +187,7 @@ Either way *all* thumbnails (not only JXL) are rebuilt as you browse.
    the DLL up from `build\` when there is none next to it.
 4. `package.cmd` builds and packs the release zip into `dist\`.
 
-Settings (read size per step, thread cap, when to use the DC) are constants at
+Settings (read sizes, thread cap, when to use the DC) are constants at
 the top of [`src/jxl_thumb.cpp`](src/jxl_thumb.cpp).
 
 ## Testing on your own files

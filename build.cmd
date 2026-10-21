@@ -1,6 +1,6 @@
 @echo off
 rem Builds build\jxl_thumb.dll and build\thumbtest.exe.
-rem Needs Visual Studio 2022 Build Tools with the C++ workload. Downloads the
+rem Needs Visual Studio 2026 Build Tools with the C++ workload. Downloads the
 rem official libjxl static package once into deps\ and checks its SHA-256.
 setlocal
 

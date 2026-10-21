@@ -5,7 +5,32 @@ keeps a short summary of the current release.
 
 | Version | Date | Highlights |
 |---------|------|------------|
-| **[v0.1.0](#v010)** | 2026-10-21 | First version: Explorer thumbnails from the 1:8 DC image, sRGB colour, per-user install |
+| **[v0.1.1](#v011)** | 2026-10-22 | About 2.4× faster: the DC read in one go, up to 16 threads, lighter downscale |
+| [v0.1.0](#v010) | 2026-10-21 | First version: Explorer thumbnails from the 1:8 DC image, sRGB colour, per-user install |
+
+---
+
+## v0.1.1
+
+*2026-10-22*
+
+Faster thumbnails; nothing to change on your side. On the same 16 masters,
+through the Windows shell: 0.91 s instead of 2.2 s at 256 px, and 2.6 s instead
+of 3.6 s at 1024 px (preview-pane size).
+
+- **The DC is read in one go.** The first read is now a tenth of the file
+  (1–16 MB) instead of 256 KB steps. With all of the DC at hand libjxl decodes
+  its groups in parallel: 25 ms instead of 84 ms on a 45 MP master. Reads after
+  that double in size.
+- **Up to 16 threads per thumbnail** (was 8). Explorer asks for one thumbnail
+  at a time — checked with a trace of its thumbnail process — so a single
+  thumbnail can use the cores. Above 16 nothing was gained.
+- **Lighter downscale for the DC.** libjxl renders the DC at full size; only
+  every 2nd row and column of it is summed now, and images without alpha skip
+  the alpha weighting. Full decodes still sum every pixel: lossless thumbnails
+  are byte-identical to v0.1.0's.
+- Lossless and modular files gain from the threads too (16 MP lossless: 110 ms,
+  was ~200 ms).
 
 ---
 

@@ -15,8 +15,13 @@ each block, the "DC" (in the spec: LF coefficients), forms a complete image at
 libjxl can render a frame as soon as its LF groups are in:
 `JxlDecoderSetProgressiveDetail(dec, kDC)` makes the decoder report
 `JXL_DEC_FRAME_PROGRESSION` at that point, and `JxlDecoderFlushImage` turns
-what it has into pixels. jxl-thumb feeds the file in 256 KB steps and stops
-there.
+what it has into pixels. jxl-thumb stops there.
+
+The first read takes a tenth of the file (at least 1 MB, at most 16 MB): on
+`d=0.05` masters the DC ends 5–10 % in, so one read holds all of it and libjxl
+decodes its groups in parallel. If the DC is not complete yet, each further
+read doubles. Feeding the same data in small steps makes the decoder handle
+the groups one at a time — on a 45 MP master that took 84 ms instead of 25 ms.
 
 This does **not** need `cjxl --progressive_dc=1`. That option adds extra
 levels *inside* the DC (1:16, 1:32, …) for very small previews; the 1:8 image
@@ -40,7 +45,15 @@ large image, the size of the pane. Those requests usually exceed the DC and
 take the full-decode path.
 
 In all these cases libjxl decodes the first frame completely, with up to
-`MAX_THREADS` threads.
+`MAX_THREADS` threads, reading up to 64 MB at a time.
+
+## Threads
+
+A trace of Explorer's thumbnail process showed it asking for one thumbnail at
+a time, from one thread. So the time of a single thumbnail is what you wait
+for, and each one gets up to 16 decoder threads (`MAX_THREADS`; fewer on a CPU
+with fewer logical cores). On a 32-thread CPU, 16 threads made a 25–45 MP
+thumbnail about 25 % faster than 8; more than 16 gained nothing.
 
 ## Colour
 
@@ -56,7 +69,14 @@ normal screen.
 libjxl hands the pixels over row segment by row segment through
 `JxlDecoderSetMultithreadedImageOutCallback`. Each pixel is added to the
 destination pixel it falls in (a box filter), with alpha-weighted sums so
-transparent areas do not darken the edges. A lock per destination row keeps
+transparent areas do not darken the edges (images without alpha skip the
+weighting).
+
+When the DC is flushed, libjxl still renders it at full size, upsampled 8×.
+That image holds no detail finer than the DC, so jxl-thumb sums only every 2nd
+row and column of it (`DC_SAMPLE_STEP`): that takes a third off the render
+step, and the result stays within about 0.6 dB of summing every pixel. A full
+decode (lossless files, large requests) always sums every pixel. A lock per destination row keeps
 the decoder's threads from colliding. When the decoder is done, the averages
 become a premultiplied 32-bit bitmap — the format Explorer expects.
 
