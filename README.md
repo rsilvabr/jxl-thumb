@@ -7,7 +7,7 @@ out about 40× faster than with the Microsoft JPEG XL extension, in the right
 colours for wide-gamut (ProPhoto, Adobe RGB, P3) files, and only about a tenth
 of each file is read.
 
-**Current version: v0.2.0** (2026-10-22) · [All releases](docs/version_history.md) · [How it works](docs/how_it_works.md) · [Performance notes](docs/performance.md)
+**Current version: v0.2.1** (2026-10-23) · [All releases](docs/version_history.md) · [How it works](docs/how_it_works.md) · [Performance notes](docs/performance.md)
 
 ---
 
@@ -17,7 +17,7 @@ of each file is read.
 - [What it does](#what-it-does)
 - [Measured](#measured)
 - [Requirements](#requirements)
-- [Install](#install)
+- [Install](#install) · [Verifying a download](#verifying-a-download)
 - [Uninstall](#uninstall)
 - [Refreshing thumbnails Windows already made](#refreshing-thumbnails-windows-already-made)
 - [Good to know](#good-to-know)
@@ -140,6 +140,21 @@ To update, extract the new version and run `install.cmd` again. Explorer may
 still hold the old DLL open; the installer renames it out of the way and
 removes it on a later run.
 
+## Verifying a download
+
+Releases since v0.2.1 are built by GitHub Actions from the tagged code
+([workflow](.github/workflows/release.yml)), not on the author's PC, and GitHub
+records a build attestation for the zip, `jxl_thumb.dll` and `thumbtest.exe`.
+With the [GitHub CLI](https://cli.github.com/):
+
+```
+gh attestation verify jxl_thumb.dll --repo rsilvabr/jxl-thumb
+```
+
+It names the commit and the workflow run the file came from, and fails for a
+file that was not built there (even one byte changed). The run's log also
+prints each file's SHA-256.
+
 ## Uninstall
 
 Double-click **`uninstall.cmd`**. It unregisters the DLL and deletes
@@ -195,7 +210,8 @@ Either way *all* thumbnails (not only JXL) are rebuilt as you browse.
    static package into `deps\` and checks its SHA-256.
 3. Output: `build\jxl_thumb.dll` and `build\thumbtest.exe`. `install.cmd` picks
    the DLL up from `build\` when there is none next to it.
-4. `package.cmd` builds and packs the release zip into `dist\`.
+4. `package.cmd` builds and packs the release zip into `dist\`. Releases run
+   the same script on GitHub Actions when a `v*` tag is pushed.
 
 Settings (read sizes, thread cap, when to use the DC) are constants at
 the top of [`src/jxl_thumb.cpp`](src/jxl_thumb.cpp).

@@ -5,9 +5,30 @@ keeps a short summary of the current release.
 
 | Version | Date | Highlights |
 |---------|------|------------|
-| **[v0.2.0](#v020)** | 2026-10-22 | Shows the thumbnail jxl-photo stores in the file: lossless 45 MP files in ~2 ms instead of ~1.1 s |
+| **[v0.2.1](#v021)** | 2026-10-23 | Built by GitHub Actions, with a build attestation; same code as v0.2.0 |
+| [v0.2.0](#v020) | 2026-10-22 | Shows the thumbnail jxl-photo stores in the file: lossless 45 MP files in ~2 ms instead of ~1.1 s |
 | [v0.1.1](#v011) | 2026-10-22 | About 2.4× faster: the DC read in one go, up to 16 threads, lighter downscale |
 | [v0.1.0](#v010) | 2026-10-21 | First version: Explorer thumbnails from the 1:8 DC image, sRGB colour, per-user install |
+
+---
+
+## v0.2.1
+
+*2026-10-23*
+
+Nothing changes in what jxl-thumb does: the code is v0.2.0's. What changes is
+where the release comes from.
+
+- **Built by GitHub Actions** from the tagged code
+  ([workflow](../.github/workflows/release.yml)), running the same
+  `package.cmd` as a local build, instead of on the author's PC.
+- **Build attestation** for the zip, `jxl_thumb.dll` and `thumbtest.exe`:
+  `gh attestation verify jxl_thumb.dll --repo rsilvabr/jxl-thumb` names the
+  commit and the workflow run; a file with one byte changed fails.
+- Checked before publishing: the DLL from GitHub makes the same thumbnails as
+  the local v0.2.0 build, pixel for pixel, on lossy, lossless and
+  jxl-photo-thumbnail files at 256 and 768 px, at the same speed. The two
+  DLLs differ only in their build time stamp (6 bytes).
 
 ---
 
