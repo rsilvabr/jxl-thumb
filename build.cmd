@@ -39,15 +39,17 @@ call "%VSDIR%\VC\Auxiliary\Build\vcvars64.bat" >nul 2>&1 || goto :fail
 
 if not exist "%OUT%" mkdir "%OUT%"
 set "DEFINES=/DJXL_STATIC_DEFINE /DJXL_CMS_STATIC_DEFINE /DJXL_THREADS_STATIC_DEFINE /DHWY_STATIC_DEFINE /DUNICODE /D_UNICODE"
-set "CFLAGS=/nologo /O2 /MT /EHsc /std:c++17 /W4 /utf-8 %DEFINES% /I"%JXL%\include""
+rem /Brepro: no build time in the files, so the same toolset gives the same bytes
+rem (the release built on GitHub can be checked against a local build).
+set "CFLAGS=/nologo /O2 /MT /EHsc /std:c++17 /W4 /utf-8 /Brepro %DEFINES% /I"%JXL%\include""
 set "JXLLIBS=jxl.lib jxl_cms.lib jxl_threads.lib hwy.lib brotlidec.lib brotlicommon.lib"
 set "WINLIBS=ole32.lib shlwapi.lib shell32.lib advapi32.lib gdi32.lib user32.lib uuid.lib windowscodecs.lib"
 
 rc /nologo /fo "%OUT%\jxl_thumb.res" "%ROOT%src\jxl_thumb.rc" || goto :fail
 cl %CFLAGS% /LD "%ROOT%src\jxl_thumb.cpp" "%OUT%\jxl_thumb.res" /Fo"%OUT%\\" /Fe"%OUT%\jxl_thumb.dll" ^
-   /link /DEF:"%ROOT%src\jxl_thumb.def" /LIBPATH:"%JXL%\lib" %JXLLIBS% %WINLIBS% || goto :fail
+   /link /Brepro /DEF:"%ROOT%src\jxl_thumb.def" /LIBPATH:"%JXL%\lib" %JXLLIBS% %WINLIBS% || goto :fail
 cl %CFLAGS% "%ROOT%tools\thumbtest.cpp" /Fo"%OUT%\\" /Fe"%OUT%\thumbtest.exe" ^
-   /link %WINLIBS% windowscodecs.lib || goto :fail
+   /link /Brepro %WINLIBS% windowscodecs.lib || goto :fail
 
 echo.
 echo Built %OUT%\jxl_thumb.dll
