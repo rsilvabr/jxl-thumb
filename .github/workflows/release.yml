@@ -1,0 +1,65 @@
+# Builds the release zip on GitHub's own Windows machine, from the code of the
+# commit or tag being built, and records a build attestation for the DLL, the
+# test tool and the zip. Anyone can then check that a file came from here:
+#
+#   gh attestation verify jxl_thumb.dll --repo rsilvabr/jxl-thumb
+#
+# A pushed tag (vX.Y.Z) also creates a DRAFT release with the zip; it is
+# tested on real photos before it is published. Run by hand (Actions tab, "Run
+# workflow"), it only builds and keeps the zip as a run artifact.
+
+name: Build release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write       # create the draft release
+  id-token: write       # sign the attestation
+  attestations: write   # store it
+
+jobs:
+  build:
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: The tag matches src\version.h
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        run: |
+          $v = (Select-String -Path src\version.h -Pattern 'JXLTHUMB_VERSION_STR "([^"]+)"').Matches[0].Groups[1].Value
+          if ("v$v" -ne "${{ github.ref_name }}") { throw "tag ${{ github.ref_name }} but version.h says $v" }
+
+      - name: Build and pack (package.cmd)
+        shell: cmd
+        run: call package.cmd
+
+      - name: SHA-256
+        shell: pwsh
+        run: Get-FileHash build\jxl_thumb.dll, build\thumbtest.exe, dist\*.zip | Format-Table Hash, Path -AutoSize -Wrap
+
+      - uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: |
+            build/jxl_thumb.dll
+            build/thumbtest.exe
+            dist/*.zip
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: jxl-thumb-${{ github.ref_name }}
+          path: dist/*.zip
+          if-no-files-found: error
+
+      - name: Draft release
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ github.ref_name }}" (Get-Item dist\*.zip).FullName --draft --verify-tag `
+            --title "${{ github.ref_name }}" `
+            --notes "Built by GitHub Actions from ${{ github.sha }}. Notes to follow."
