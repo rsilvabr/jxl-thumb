@@ -41,7 +41,7 @@ if not exist "%OUT%" mkdir "%OUT%"
 set "DEFINES=/DJXL_STATIC_DEFINE /DJXL_CMS_STATIC_DEFINE /DJXL_THREADS_STATIC_DEFINE /DHWY_STATIC_DEFINE /DUNICODE /D_UNICODE"
 set "CFLAGS=/nologo /O2 /MT /EHsc /std:c++17 /W4 /utf-8 %DEFINES% /I"%JXL%\include""
 set "JXLLIBS=jxl.lib jxl_cms.lib jxl_threads.lib hwy.lib brotlidec.lib brotlicommon.lib"
-set "WINLIBS=ole32.lib shlwapi.lib shell32.lib advapi32.lib gdi32.lib user32.lib uuid.lib"
+set "WINLIBS=ole32.lib shlwapi.lib shell32.lib advapi32.lib gdi32.lib user32.lib uuid.lib windowscodecs.lib"
 
 rc /nologo /fo "%OUT%\jxl_thumb.res" "%ROOT%src\jxl_thumb.rc" || goto :fail
 cl %CFLAGS% /LD "%ROOT%src\jxl_thumb.cpp" "%OUT%\jxl_thumb.res" /Fo"%OUT%\\" /Fe"%OUT%\jxl_thumb.dll" ^

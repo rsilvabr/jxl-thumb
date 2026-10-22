@@ -6,7 +6,8 @@
 // Lossless/modular files, small images and large requests fall back to a full
 // decode. Pixels are converted to sRGB and box-filtered down to the requested
 // size while they stream out of libjxl, so the full-resolution image is never
-// held in memory.
+// held in memory. A file that carries jxl-photo's thumbnail box (checked by a
+// codestream fingerprint) is shown from that small JPEG instead.
 //
 // Registration is per user (HKCU\Software\Classes): no admin rights, and
 // unregistering restores whatever handler Windows had before.
@@ -19,11 +20,15 @@
 #include <propsys.h>
 #include <thumbcache.h>
 
+#include <wincodec.h>
+
 #include <algorithm>
 #include <atomic>
 #include <cstdint>
+#include <cstdio>
 #include <cstring>
 #include <new>
+#include <string>
 #include <vector>
 
 #include <jxl/cms.h>
@@ -320,6 +325,171 @@ static HRESULT DecodeThumbnail(IStream* stream, UINT cx, HBITMAP* out_bmp,
 }
 
 // ---------------------------------------------------------------------------
+// Thumbnail box written by jxl-photo (EXPLORER_THUMBNAIL, v2.16.0+): an ISO
+// BMFF `uuid` box with jxl-photo's UUID, whose payload is
+//   "jxlphoto-thumbnail:v1:<bytes>:<fnv>\n" + a JPEG (sRGB, 768 px long side)
+// The fingerprint names the codestream the JPEG was made from: its length and
+// the FNV-1a 64 hash of its first 64 KiB. The JPEG is shown only while that
+// still matches the file's codestream (an edit that re-encoded the pixels and
+// kept the box would leave a stale one) and only when it is at least as large
+// as asked. Anything else — no container, no box, a stale fingerprint, a parse
+// or decode problem — falls back to the normal decode.
+// ---------------------------------------------------------------------------
+
+static const uint8_t kThumbBoxUuid[16] = {0x4e, 0x0b, 0x40, 0x16, 0xf5, 0x1c, 0x47, 0x3d,
+                                          0x96, 0x69, 0xbc, 0x35, 0xae, 0xbe, 0x3c, 0x16};
+static const char kThumbBoxMarker[] = "jxlphoto-thumbnail:v1:";
+static const size_t kFingerprintHead = 65536;
+static const uint64_t kThumbBoxMax = 16 * 1024 * 1024;   // a larger box is not ours
+
+static bool ReadAt(IStream* s, uint64_t pos, void* dst, ULONG n) {
+  LARGE_INTEGER li;
+  li.QuadPart = static_cast<LONGLONG>(pos);
+  if (FAILED(s->Seek(li, STREAM_SEEK_SET, nullptr))) return false;
+  ULONG got = 0;
+  return SUCCEEDED(s->Read(dst, n, &got)) && got == n;
+}
+
+static uint32_t Be32(const uint8_t* p) {
+  return (uint32_t(p[0]) << 24) | (uint32_t(p[1]) << 16) | (uint32_t(p[2]) << 8) | p[3];
+}
+
+// Walks the container's boxes with seeks: the thumbnail box (recorded
+// fingerprint + JPEG) and the codestream's length and first 64 KiB, from
+// which the actual fingerprint is computed. False when there is no box.
+static bool ReadThumbnailBox(IStream* s, std::string* recorded, std::string* actual,
+                             std::vector<uint8_t>* jpeg) {
+  STATSTG stat = {};
+  if (FAILED(s->Stat(&stat, STATFLAG_NONAME))) return false;
+  const uint64_t end = stat.cbSize.QuadPart;
+  uint8_t sig[2];
+  if (!ReadAt(s, 0, sig, 2) || (sig[0] == 0xff && sig[1] == 0x0a)) return false;  // bare
+
+  std::vector<uint8_t> head;
+  uint64_t cs_len = 0, pos = 0;
+  bool have_cs = false, have_box = false;
+  const size_t mlen = sizeof(kThumbBoxMarker) - 1;
+  while (pos + 8 <= end) {
+    uint8_t h[16];
+    if (!ReadAt(s, pos, h, 8)) return false;
+    uint64_t size = Be32(h);
+    uint64_t hdr = 8;
+    if (size == 1) {
+      if (!ReadAt(s, pos + 8, h + 8, 8)) return false;
+      size = 0;
+      for (int i = 8; i < 16; ++i) size = (size << 8) | h[i];
+      hdr = 16;
+    } else if (size == 0) {
+      size = end - pos;
+    }
+    if (size < hdr || pos + size > end) return false;
+    const uint64_t payload = size - hdr;
+    const bool jxlc = !std::memcmp(h + 4, "jxlc", 4), jxlp = !std::memcmp(h + 4, "jxlp", 4);
+    if ((jxlc || jxlp) && payload >= (jxlp ? 4u : 0u)) {
+      const uint64_t skip = jxlp ? 4 : 0, n = payload - skip;
+      cs_len += n;
+      have_cs = true;
+      if (head.size() < kFingerprintHead && n) {
+        const size_t take = static_cast<size_t>(
+            std::min<uint64_t>(n, kFingerprintHead - head.size()));
+        const size_t old = head.size();
+        head.resize(old + take);
+        if (!ReadAt(s, pos + hdr + skip, head.data() + old, static_cast<ULONG>(take)))
+          return false;
+      }
+    } else if (!have_box && !std::memcmp(h + 4, "uuid", 4) && payload > 16 + mlen &&
+               payload <= kThumbBoxMax) {
+      uint8_t id[16];
+      if (!ReadAt(s, pos + hdr, id, 16)) return false;
+      if (!std::memcmp(id, kThumbBoxUuid, 16)) {
+        std::vector<uint8_t> data(static_cast<size_t>(payload - 16));
+        if (!ReadAt(s, pos + hdr + 16, data.data(), static_cast<ULONG>(data.size())))
+          return false;
+        if (std::memcmp(data.data(), kThumbBoxMarker, mlen)) return false;
+        const auto nl = std::find(data.begin() + mlen, data.end(), uint8_t('\n'));
+        if (nl == data.end() || nl - (data.begin() + mlen) > 64) return false;
+        recorded->assign(data.begin() + mlen, nl);
+        jpeg->assign(nl + 1, data.end());
+        have_box = true;
+      }
+    }
+    pos += size;
+  }
+  if (!have_box || !have_cs || jpeg->size() < 4) return false;
+
+  uint64_t hash = 0xcbf29ce484222325ull;
+  for (uint8_t b : head) hash = (hash ^ b) * 0x100000001b3ull;
+  char buf[64];
+  snprintf(buf, sizeof(buf), "%llu:%016llx", static_cast<unsigned long long>(cs_len),
+           static_cast<unsigned long long>(hash));
+  *actual = buf;
+  return true;
+}
+
+// S_OK with the thumbnail; S_FALSE (or an error) to fall back to the decode.
+static HRESULT TryThumbnailBox(IStream* stream, UINT cx, HBITMAP* out_bmp,
+                               WTS_ALPHATYPE* out_alpha) {
+  std::string recorded, actual;
+  std::vector<uint8_t> jpeg;
+  if (!ReadThumbnailBox(stream, &recorded, &actual, &jpeg)) return S_FALSE;
+  if (recorded != actual) return S_FALSE;  // stale: the pixels changed since
+
+  IWICImagingFactory* wic = nullptr;
+  if (FAILED(CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER,
+                              IID_PPV_ARGS(&wic))))
+    return S_FALSE;
+  HRESULT hr = S_FALSE;
+  IStream* mem = SHCreateMemStream(jpeg.data(), static_cast<UINT>(jpeg.size()));
+  IWICBitmapDecoder* decoder = nullptr;
+  IWICBitmapFrameDecode* frame = nullptr;
+  IWICBitmapScaler* scaler = nullptr;
+  IWICFormatConverter* conv = nullptr;
+  UINT w = 0, h = 0;
+  if (mem &&
+      SUCCEEDED(wic->CreateDecoderFromStream(mem, nullptr, WICDecodeMetadataCacheOnDemand,
+                                             &decoder)) &&
+      SUCCEEDED(decoder->GetFrame(0, &frame)) && SUCCEEDED(frame->GetSize(&w, &h)) && w &&
+      h && std::max(w, h) >= cx) {
+    UINT dw, dh;
+    if (w >= h) { dw = cx; dh = std::max<UINT>(1, (h * cx + w / 2) / w); }
+    else        { dh = cx; dw = std::max<UINT>(1, (w * cx + h / 2) / h); }
+    IWICBitmapSource* src = frame;
+    if ((dw != w || dh != h) && SUCCEEDED(wic->CreateBitmapScaler(&scaler)) &&
+        SUCCEEDED(scaler->Initialize(frame, dw, dh, WICBitmapInterpolationModeFant)))
+      src = scaler;
+    else { dw = w; dh = h; }
+    if (SUCCEEDED(wic->CreateFormatConverter(&conv)) &&
+        SUCCEEDED(conv->Initialize(src, GUID_WICPixelFormat32bppBGRA, WICBitmapDitherTypeNone,
+                                   nullptr, 0.0, WICBitmapPaletteTypeCustom))) {
+      BITMAPINFO bmi = {};
+      bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+      bmi.bmiHeader.biWidth = static_cast<LONG>(dw);
+      bmi.bmiHeader.biHeight = -static_cast<LONG>(dh);
+      bmi.bmiHeader.biPlanes = 1;
+      bmi.bmiHeader.biBitCount = 32;
+      bmi.bmiHeader.biCompression = BI_RGB;
+      void* bits = nullptr;
+      HBITMAP bmp = CreateDIBSection(nullptr, &bmi, DIB_RGB_COLORS, &bits, nullptr, 0);
+      if (bmp && SUCCEEDED(conv->CopyPixels(nullptr, dw * 4, dw * dh * 4,
+                                            static_cast<BYTE*>(bits)))) {
+        *out_bmp = bmp;
+        *out_alpha = WTSAT_RGB;
+        hr = S_OK;
+      } else if (bmp) {
+        DeleteObject(bmp);
+      }
+    }
+  }
+  if (conv) conv->Release();
+  if (scaler) scaler->Release();
+  if (frame) frame->Release();
+  if (decoder) decoder->Release();
+  if (mem) mem->Release();
+  wic->Release();
+  return hr;
+}
+
+// ---------------------------------------------------------------------------
 // COM objects
 // ---------------------------------------------------------------------------
 
@@ -360,6 +530,7 @@ class JxlThumbProvider : public IThumbnailProvider, public IInitializeWithStream
     *pdwAlpha = WTSAT_UNKNOWN;
     if (!stream_) return E_UNEXPECTED;
     try {
+      if (TryThumbnailBox(stream_, cx, phbmp, pdwAlpha) == S_OK) return S_OK;
       return DecodeThumbnail(stream_, cx, phbmp, pdwAlpha);
     } catch (const std::bad_alloc&) {
       return E_OUTOFMEMORY;

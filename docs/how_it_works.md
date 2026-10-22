@@ -29,6 +29,31 @@ is always first in a VarDCT file. It was checked on files written by libjxl
 0.12 with its default streaming encoder (`--buffering` left to cjxl), which is
 how [jxl-photo](https://github.com/rsilvabr/jxl-photo) writes its masters.
 
+## jxl-photo's thumbnail box (checked first)
+
+Before any decode, jxl-thumb looks for the thumbnail
+[jxl-photo](https://github.com/rsilvabr/jxl-photo) v2.16.0+ stores in the
+file: an ISO BMFF `uuid` box (the format's way to carry a program's own data;
+other readers skip it) with jxl-photo's UUID, whose payload is
+`jxlphoto-thumbnail:v1:<bytes>:<hash>\n` followed by a JPEG (768 px, sRGB).
+jxl-photo places it right before the codestream.
+
+1. The container's boxes are walked with seeks: box headers, the thumbnail
+   box, and the first 64 KiB of the codestream (`jxlc`, or the `jxlp` parts
+   without their 4-byte index). A bare codestream has no boxes: straight to
+   the decode.
+2. The fingerprint is computed: codestream length + FNV-1a 64 of those
+   64 KiB. It must equal the recorded one — an edit that re-encoded the pixels
+   but kept the box leaves a stale value, and that thumbnail is ignored.
+   Metadata edits do not touch the codestream and keep it valid.
+3. The JPEG must be at least as large as the request (long side ≥ `cx`).
+   Windows decodes it (WIC) and scales it with the Fant filter.
+
+Any failure along the way falls back to the decode below. `kThumbBoxMax`
+(16 MB) caps the box it will read. Why not EXIF: a 768 px JPEG does not fit
+a JPEG's 64 KB EXIF segment, and djxl copies a JXL's EXIF into the JPEG it
+writes — it would fail on such files.
+
 ## When the DC is not used
 
 - **Lossless and modular files** (`-d 0`, `-m 1`) have no DC image; the

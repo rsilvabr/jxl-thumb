@@ -5,8 +5,42 @@ keeps a short summary of the current release.
 
 | Version | Date | Highlights |
 |---------|------|------------|
-| **[v0.1.1](#v011)** | 2026-10-22 | About 2.4× faster: the DC read in one go, up to 16 threads, lighter downscale |
+| **[v0.2.0](#v020)** | 2026-10-22 | Shows the thumbnail jxl-photo stores in the file: lossless 45 MP files in ~2 ms instead of ~1.1 s |
+| [v0.1.1](#v011) | 2026-10-22 | About 2.4× faster: the DC read in one go, up to 16 threads, lighter downscale |
 | [v0.1.0](#v010) | 2026-10-21 | First version: Explorer thumbnails from the 1:8 DC image, sRGB colour, per-user install |
+
+---
+
+## v0.2.0
+
+*2026-10-22*
+
+Lossless JXLs have no 1:8 DC image, so their thumbnail meant decoding the
+whole file. [jxl-photo](https://github.com/rsilvabr/jxl-photo) v2.16.0 now
+stores a small JPEG inside its lossless outputs (and inside any file on
+request), and jxl-thumb shows it.
+
+- **What it reads:** an ISO BMFF `uuid` box with jxl-photo's UUID, holding
+  `jxlphoto-thumbnail:v1:<bytes>:<hash>` and then a JPEG (768 px, sRGB). The
+  fingerprint names the codestream the JPEG was made from: its length and the
+  FNV-1a 64 hash of its first 64 KiB. The file's boxes are walked with seeks,
+  so the codestream is never read beyond those 64 KiB.
+- **Why a box of its own and not the EXIF:** a 768 px JPEG does not fit the
+  64 KB EXIF segment of a JPEG, and djxl, which copies a JXL's EXIF into the
+  JPEG it writes, then fails ("Bogus marker length"). Other programs skip a
+  box they do not know; exiftool edits keep it.
+- **When it is used:** only when the fingerprint matches this file's
+  codestream (an edit that re-encoded the pixels and kept the box leaves a
+  stale one: ignored) and when the JPEG is at least as large as the request.
+  Explorer's icon views ask for up to 768 px; the preview pane asks for more
+  and still decodes the JXL. Anything else — no container, no box, a stale
+  fingerprint, a damaged box — falls back to the usual decode.
+- **Measured** on 45 MP photos (SSD, warm): lossless 1100 ms → 1.7 ms,
+  lossy d=0.1 52 → 1.7 ms, d=1 76 → 1.6 ms, reading ~0.2 MB instead of
+  3–169 MB. The pictures match the decoded ones within half a level of 255 on
+  average (32–35 dB, the difference being JPEG q85 and the resampling).
+- The JPEG is decoded and scaled by Windows (WIC, Fant filter).
+- Files without such a box behave exactly as in v0.1.1.
 
 ---
 

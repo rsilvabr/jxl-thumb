@@ -7,7 +7,7 @@ out about 40× faster than with the Microsoft JPEG XL extension, in the right
 colours for wide-gamut (ProPhoto, Adobe RGB, P3) files, and only about a tenth
 of each file is read.
 
-**Current version: v0.1.1** (2026-10-22) · [All releases](docs/version_history.md) · [How it works](docs/how_it_works.md) · [Performance notes](docs/performance.md)
+**Current version: v0.2.0** (2026-10-22) · [All releases](docs/version_history.md) · [How it works](docs/how_it_works.md) · [Performance notes](docs/performance.md)
 
 ---
 
@@ -52,6 +52,13 @@ image — the "DC" — before the fine detail. For a 6048 × 4032 photo that is 
 - **Falls back to a full decode** (multi-threaded libjxl) when the DC is not
   enough: lossless/modular files, small images, or a thumbnail larger than the
   DC.
+- **Uses the thumbnail [jxl-photo](https://github.com/rsilvabr/jxl-photo)
+  stores inside the file** (v2.16.0+; by default in lossless files, which have
+  no DC): a 768 px sRGB JPEG in a box of its own, shown in ~2 ms reading
+  ~0.2 MB, instead of decoding the whole file (~1.1 s for a 45 MP lossless
+  photo, 1.8 s from a hard disk). It is used only while the fingerprint stored
+  with it still names the file's codestream, so a thumbnail left stale by an
+  edit is never shown.
 - **Correct colours** — every image is converted to sRGB, so ProPhoto, Adobe RGB
   and Display P3 masters look right.
 - **Orientation, alpha, grayscale, animation** (first frame) and **truncated
@@ -161,7 +168,10 @@ Either way *all* thumbnails (not only JXL) are rebuilt as you browse.
   (admin rights needed).
 - **Lossless JXLs** have no DC image, so they are decoded in full — still with
   libjxl's multi-threaded decoder, usually much faster than the Microsoft
-  extension, but they read the whole file.
+  extension, but they read the whole file. Unless they carry jxl-photo's
+  thumbnail: jxl-photo writes it into lossless files by default, and its
+  menu option 9 (or `jxl_recompressor.py --refresh-explorer-thumbnails`) adds
+  it to files that already exist, without re-encoding them.
 - **JPEGs transcoded losslessly to JXL** (`cjxl photo.jpg`) are VarDCT too and
   get the fast path.
 - **HDR images** (PQ/HLG) are converted to sRGB without tone mapping: their
