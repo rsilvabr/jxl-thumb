@@ -17,7 +17,7 @@ of each file is read.
 - [What it does](#what-it-does)
 - [Measured](#measured)
 - [Requirements](#requirements)
-- [Install](#install) · [Verifying a download](#verifying-a-download)
+- [Install](#install) · [Verifying a download](#verifying-a-download) · [Code signing policy](#code-signing-policy)
 - [Uninstall](#uninstall)
 - [Refreshing thumbnails Windows already made](#refreshing-thumbnails-windows-already-made)
 - [Good to know](#good-to-know)
@@ -154,6 +154,29 @@ gh attestation verify jxl_thumb.dll --repo rsilvabr/jxl-thumb
 It names the commit and the workflow run the file came from, and fails for a
 file that was not built there (even one byte changed). The run's log also
 prints each file's SHA-256.
+
+## Code signing policy
+
+jxl-thumb has applied for free code signing from
+[SignPath Foundation](https://signpath.org). Once that is granted, release
+builds of `jxl_thumb.dll` are signed under this policy; until then they are
+unsigned (and still carry the build attestation above).
+
+Free code signing provided by [SignPath.io](https://about.signpath.io),
+certificate by [SignPath Foundation](https://signpath.org).
+
+- **What is signed:** only `jxl_thumb.dll`, the file Explorer loads, built by
+  GitHub Actions from the tagged code ([workflow](.github/workflows/release.yml))
+  and nothing else. `thumbtest.exe`, a developer tool, is not signed.
+- **Committers and reviewers:** [rsilvabr](https://github.com/rsilvabr), the
+  author. Changes from anyone else arrive as pull requests and are reviewed
+  before they are merged.
+- **Approvers:** [rsilvabr](https://github.com/rsilvabr) approves every signing
+  request, after the release build has been tested on real photos.
+- **Privacy:** this program will not transfer any information to other
+  networked systems unless specifically requested by the user or the person
+  installing or operating it. jxl-thumb makes no network connections at all: it
+  reads the image files Explorer hands it and nothing else.
 
 ## Uninstall
 

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  SignPath artifact configuration for jxl-thumb (kept here for reference; the
+  active copy lives in the SignPath project). The release workflow uploads
+  build/jxl_thumb.dll as a GitHub artifact, which GitHub zips: the root is
+  therefore a zip holding the one DLL. Only our own DLL is signed, and only
+  when its version resource names this product and the release's version.
+-->
+<artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
+  <parameters>
+    <parameter name="version" required="true" />
+  </parameters>
+  <zip-file>
+    <pe-file path="jxl_thumb.dll" product-name="jxl-thumb" product-version="${version}">
+      <authenticode-sign />
+    </pe-file>
+  </zip-file>
+</artifact-configuration>

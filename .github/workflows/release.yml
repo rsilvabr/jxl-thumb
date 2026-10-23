@@ -7,6 +7,12 @@
 # A pushed tag (vX.Y.Z) also creates a DRAFT release with the zip; it is
 # tested on real photos before it is published. Run by hand (Actions tab, "Run
 # workflow"), it only builds and keeps the zip as a run artifact.
+#
+# Code signing (SignPath Foundation, see "Code signing policy" in the README):
+# on a tag, once the repository variable SIGNPATH_ORGANIZATION_ID and the
+# secret SIGNPATH_API_TOKEN exist, jxl_thumb.dll is sent for signing between
+# the build and the zip. A maintainer approves each request on SignPath; the
+# job waits for it. Without those settings the release is built unsigned.
 
 name: Build release
 
@@ -19,22 +25,70 @@ permissions:
   contents: write       # create the draft release
   id-token: write       # sign the attestation
   attestations: write   # store it
+  actions: read         # SignPath fetches the unsigned artifact
 
 jobs:
   build:
     runs-on: windows-2025
+    env:
+      SIGN: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' && startsWith(github.ref, 'refs/tags/') }}
     steps:
       - uses: actions/checkout@v7
+
+      - name: Version (src\version.h)
+        id: version
+        shell: pwsh
+        run: |
+          $v = (Select-String -Path src\version.h -Pattern 'JXLTHUMB_VERSION_STR "([^"]+)"').Matches[0].Groups[1].Value
+          "value=$v" >> $env:GITHUB_OUTPUT
 
       - name: The tag matches src\version.h
         if: startsWith(github.ref, 'refs/tags/')
         shell: pwsh
         run: |
-          $v = (Select-String -Path src\version.h -Pattern 'JXLTHUMB_VERSION_STR "([^"]+)"').Matches[0].Groups[1].Value
-          if ("v$v" -ne "${{ github.ref_name }}") { throw "tag ${{ github.ref_name }} but version.h says $v" }
+          if ("v${{ steps.version.outputs.value }}" -ne "${{ github.ref_name }}") { throw "tag ${{ github.ref_name }} but version.h says ${{ steps.version.outputs.value }}" }
 
-      - name: Build and pack (package.cmd)
+      - name: Build (build.cmd)
         shell: cmd
+        run: call build.cmd
+
+      - name: Upload the unsigned DLL for signing
+        if: env.SIGN == 'true'
+        id: unsigned
+        uses: actions/upload-artifact@v7
+        with:
+          name: unsigned-dll
+          path: build/jxl_thumb.dll
+          if-no-files-found: error
+
+      - name: Sign (SignPath Foundation; waits for a maintainer's approval)
+        if: env.SIGN == 'true'
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG || 'jxl-thumb' }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG || 'release-signing' }}
+          github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: signed
+          parameters: |
+            version: ${{ toJSON(steps.version.outputs.value) }}
+
+      - name: Put the signed DLL in place
+        if: env.SIGN == 'true'
+        shell: pwsh
+        run: |
+          $s = Get-AuthenticodeSignature signed\jxl_thumb.dll
+          if ($s.Status -ne 'Valid') { throw "signed DLL: $($s.Status) $($s.StatusMessage)" }
+          "signed by: $($s.SignerCertificate.Subject)"
+          Copy-Item signed\jxl_thumb.dll build\jxl_thumb.dll -Force
+
+      - name: Pack (package.cmd)
+        shell: cmd
+        env:
+          JXLTHUMB_SKIP_BUILD: "1"
         run: call package.cmd
 
       - name: SHA-256
