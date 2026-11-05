@@ -5,10 +5,35 @@ keeps a short summary of the current release.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| [v0.2.2_beta1](#v022_beta1) | 2026-11-06 | Pre-release: `enable_explorer_details.cmd` turns on the photo details of .jxl files in Explorer |
 | **[v0.2.1](#v021)** | 2026-10-23 | Built by GitHub Actions, with a build attestation; same code as v0.2.0 |
 | [v0.2.0](#v020) | 2026-10-22 | Shows the thumbnail jxl-photo stores in the file: lossless 45 MP files in ~2 ms instead of ~1.1 s |
 | [v0.1.1](#v011) | 2026-10-22 | About 2.4× faster: the DC read in one go, up to 16 threads, lighter downscale |
 | [v0.1.0](#v010) | 2026-10-21 | First version: Explorer thumbnails from the 1:8 DC image, sRGB colour, per-user install |
+
+---
+
+## v0.2.2_beta1
+
+*2026-11-06 - pre-release*
+
+The thumbnails do not change: the DLL's code is v0.2.1's.
+
+- **Photo details in Explorer.** On some Windows 11 builds Explorer shows only
+  the size and dates of a `.jxl`, not its camera, lens, ISO, date taken or
+  title, because `.jxl` has no property handler registered (`.jpg`, `.png`,
+  `.tif`, `.heic` and `.webp` do). The new `enable_explorer_details.cmd`
+  registers Windows' own image property handler for `.jxl` and the list of
+  details Explorer shows; it asks for administrator rights once.
+  `disable_explorer_details.cmd` undoes it. Nothing changes when another
+  program already registered a handler, or when Windows has no JPEG XL
+  decoder. [Details](../README.md#photo-details-in-explorer)
+- `install.cmd` says when a PC is missing it.
+
+Checked before this pre-release: on the author's PC (Windows 11 26H2, its own
+JPEG XL decoder) the handler registered by hand makes Explorer show the
+details of jxl-photo masters; the scripts' status, hint and per-user steps
+ran there. Not checked yet: the administrator step of the scripts themselves.
 
 ---
 

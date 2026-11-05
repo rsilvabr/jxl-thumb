@@ -15,6 +15,9 @@ copy /y "%ROOT%build\thumbtest.exe" "%STAGE%\" >nul
 copy /y "%ROOT%install.cmd" "%STAGE%\" >nul
 copy /y "%ROOT%uninstall.cmd" "%STAGE%\" >nul
 copy /y "%ROOT%clear_thumbnail_cache.cmd" "%STAGE%\" >nul
+copy /y "%ROOT%enable_explorer_details.cmd" "%STAGE%\" >nul
+copy /y "%ROOT%disable_explorer_details.cmd" "%STAGE%\" >nul
+copy /y "%ROOT%explorer_details.ps1" "%STAGE%\" >nul
 copy /y "%ROOT%README.md" "%STAGE%\" >nul
 copy /y "%ROOT%LICENSE" "%STAGE%\" >nul
 copy /y "%ROOT%licenses\*" "%STAGE%\licenses\" >nul

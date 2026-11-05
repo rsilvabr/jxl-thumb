@@ -20,6 +20,7 @@ of each file is read.
 - [Install](#install) · [Verifying a download](#verifying-a-download)
 - [Uninstall](#uninstall)
 - [Refreshing thumbnails Windows already made](#refreshing-thumbnails-windows-already-made)
+- [Photo details in Explorer](#photo-details-in-explorer)
 - [Good to know](#good-to-know)
 - [Building from source](#building-from-source)
 - [Testing on your own files](#testing-on-your-own-files)
@@ -173,6 +174,25 @@ had opened before keep their old thumbnails until the cache is cleared:
 - **Disk Cleanup** → tick **Thumbnails** → OK.
 
 Either way *all* thumbnails (not only JXL) are rebuilt as you browse.
+
+## Photo details in Explorer
+
+On some Windows 11 builds Explorer shows only the size and dates of a `.jxl`
+file, not its camera, lens, ISO, date taken or title, while a JPEG shows them
+all. The metadata is in the file and Windows' own JPEG XL decoder can read
+it; what is missing is the *property handler* entry for `.jxl` - the one
+Windows registers for `.jpg`, `.png`, `.tif`, `.heic`, `.webp` and camera raws.
+jxl-thumb does not cause it and its thumbnails do not need it.
+
+Since v0.2.2 the zip has **`enable_explorer_details.cmd`**: it registers
+Windows' own image property handler for `.jxl` (no code of jxl-thumb's) and
+the list of details Explorer shows. That one registry key lives under
+`HKEY_LOCAL_MACHINE`, so Windows asks for administrator rights once; the rest
+is per user. It changes nothing when another program already registered a
+property handler for `.jxl`, or when Windows has no JPEG XL decoder (install
+the JPEG XL Image Extension from the Microsoft Store first).
+`install.cmd` tells you when a PC is missing it.
+**`disable_explorer_details.cmd`** undoes exactly what it did.
 
 ## Good to know
 

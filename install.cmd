@@ -19,6 +19,7 @@ regsvr32 /s "%DEST%\jxl_thumb.dll" || goto :fail
 echo jxl-thumb installed in %DEST%
 echo New thumbnails use it now. Thumbnails Windows already cached stay as they
 echo are until the cache is cleared - see clear_thumbnail_cache.cmd.
+if exist "%~dp0explorer_details.ps1" powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0explorer_details.ps1" hint
 exit /b 0
 
 :no_dll
