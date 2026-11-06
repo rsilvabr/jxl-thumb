@@ -5,11 +5,35 @@ keeps a short summary of the current release.
 
 | Version | Date | Highlights |
 |---------|------|------------|
-| [v0.2.2_beta1](#v022_beta1) | 2026-11-06 | Pre-release: `enable_explorer_details.cmd` turns on the photo details of .jxl files in Explorer |
-| **[v0.2.1](#v021)** | 2026-10-23 | Built by GitHub Actions, with a build attestation; same code as v0.2.0 |
+| **[v0.2.2](#v022)** | 2026-11-06 | `enable_explorer_details.cmd` turns on the photo details of .jxl files in Explorer |
+| [v0.2.2_beta1](#v022_beta1) | 2026-11-06 | Pre-release of v0.2.2 |
+| [v0.2.1](#v021) | 2026-10-23 | Built by GitHub Actions, with a build attestation; same code as v0.2.0 |
 | [v0.2.0](#v020) | 2026-10-22 | Shows the thumbnail jxl-photo stores in the file: lossless 45 MP files in ~2 ms instead of ~1.1 s |
 | [v0.1.1](#v011) | 2026-10-22 | About 2.4× faster: the DC read in one go, up to 16 threads, lighter downscale |
 | [v0.1.0](#v010) | 2026-10-21 | First version: Explorer thumbnails from the 1:8 DC image, sRGB colour, per-user install |
+
+---
+
+## v0.2.2
+
+*2026-11-06*
+
+Same as v0.2.2_beta1; the thumbnails do not change (the DLL's code is
+v0.2.1's).
+
+- **Photo details in Explorer.** `enable_explorer_details.cmd` registers
+  Windows' own image property handler for `.jxl`, so Explorer shows a `.jxl`
+  file's camera, lens, ISO, date taken and title like a JPEG's; it asks for
+  administrator rights once. `disable_explorer_details.cmd` undoes exactly
+  what it did. [Details](../README.md#photo-details-in-explorer)
+- The README's install steps name it.
+
+Checked since the beta, on Windows 11 26H2 with the release zip extracted to a
+folder with brackets, a space and Japanese in its name: `disable` removed the
+handler (administrator prompt) and the per-user list, leaving no key behind;
+`enable` registered both again (administrator prompt); Explorer then showed
+the camera, lens, ISO, aperture, exposure and date of jxl-photo masters, read
+through the Windows shell.
 
 ---
 

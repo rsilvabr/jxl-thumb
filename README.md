@@ -7,7 +7,7 @@ out about 40× faster than with the Microsoft JPEG XL extension, in the right
 colours for wide-gamut (ProPhoto, Adobe RGB, P3) files, and only about a tenth
 of each file is read.
 
-**Current version: v0.2.1** (2026-10-23) · [All releases](docs/version_history.md) · [How it works](docs/how_it_works.md) · [Performance notes](docs/performance.md)
+**Current version: v0.2.2** (2026-11-06) · [All releases](docs/version_history.md) · [How it works](docs/how_it_works.md) · [Performance notes](docs/performance.md)
 
 ---
 
@@ -131,6 +131,10 @@ sRGB by ImageMagick) at 43 dB PSNR.
    [Releases](https://github.com/rsilvabr/jxl-thumb/releases) and extract it
    anywhere.
 2. Double-click **`install.cmd`**.
+3. Explorer shows only size and dates for `.jxl` files, no camera or ISO?
+   Double-click **`enable_explorer_details.cmd`** too
+   ([Photo details in Explorer](#photo-details-in-explorer)); `install.cmd`
+   says when a PC needs it.
 
 That copies `jxl_thumb.dll` to `%LOCALAPPDATA%\jxl-thumb` and registers it for
 your Windows user only (`HKEY_CURRENT_USER`), so no administrator rights are
@@ -184,7 +188,7 @@ it; what is missing is the *property handler* entry for `.jxl` - the one
 Windows registers for `.jpg`, `.png`, `.tif`, `.heic`, `.webp` and camera raws.
 jxl-thumb does not cause it and its thumbnails do not need it.
 
-Since v0.2.2 the zip has **`enable_explorer_details.cmd`**: it registers
+**`enable_explorer_details.cmd`** registers
 Windows' own image property handler for `.jxl` (no code of jxl-thumb's) and
 the list of details Explorer shows. That one registry key lives under
 `HKEY_LOCAL_MACHINE`, so Windows asks for administrator rights once; the rest
