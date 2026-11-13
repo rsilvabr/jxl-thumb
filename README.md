@@ -7,7 +7,7 @@ out about 40× faster than with the Microsoft JPEG XL extension, in the right
 colours for wide-gamut (ProPhoto, Adobe RGB, P3) files, and only about a tenth
 of each file is read.
 
-**Current version: v0.2.2** (2026-11-06) · [All releases](docs/version_history.md) · [How it works](docs/how_it_works.md) · [Performance notes](docs/performance.md)
+**Current version: v0.2.3** (2026-11-14, built with libjxl 0.13.0) · [All releases](docs/version_history.md) · [How it works](docs/how_it_works.md) · [Performance notes](docs/performance.md)
 
 ---
 
@@ -230,7 +230,7 @@ the JPEG XL Image Extension from the Microsoft Store first).
    The official libjxl Windows package is built with the 2026 toolset; Visual
    Studio 2022 fails to link it (`__std_min_element_1u` unresolved).
 2. Run **`build.cmd`**. The first run downloads the official
-   [libjxl 0.12.0](https://github.com/libjxl/libjxl/releases/tag/v0.12.0)
+   [libjxl 0.13.0](https://github.com/libjxl/libjxl/releases/tag/v0.13.0)
    static package into `deps\` and checks its SHA-256.
 3. Output: `build\jxl_thumb.dll` and `build\thumbtest.exe`. `install.cmd` picks
    the DLL up from `build\` when there is none next to it.

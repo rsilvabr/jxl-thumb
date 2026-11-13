@@ -5,12 +5,34 @@ keeps a short summary of the current release.
 
 | Version | Date | Highlights |
 |---------|------|------------|
-| **[v0.2.2](#v022)** | 2026-11-06 | `enable_explorer_details.cmd` turns on the photo details of .jxl files in Explorer |
+| **[v0.2.3](#v023)** | 2026-11-14 | Built with libjxl 0.13.0 (security fixes); the same thumbnails |
+| [v0.2.2](#v022) | 2026-11-06 | `enable_explorer_details.cmd` turns on the photo details of .jxl files in Explorer |
 | [v0.2.2_beta1](#v022_beta1) | 2026-11-06 | Pre-release of v0.2.2 |
 | [v0.2.1](#v021) | 2026-10-23 | Built by GitHub Actions, with a build attestation; same code as v0.2.0 |
 | [v0.2.0](#v020) | 2026-10-22 | Shows the thumbnail jxl-photo stores in the file: lossless 45 MP files in ~2 ms instead of ~1.1 s |
 | [v0.1.1](#v011) | 2026-10-22 | About 2.4× faster: the DC read in one go, up to 16 threads, lighter downscale |
 | [v0.1.0](#v010) | 2026-10-21 | First version: Explorer thumbnails from the 1:8 DC image, sRGB colour, per-user install |
+
+---
+
+## v0.2.3
+
+*2026-11-14*
+
+Built with libjxl 0.13.0 instead of 0.12.0; the code is v0.2.2's. Nothing to
+change on your side: run the new `install.cmd` over the old one.
+
+- **libjxl 0.13.0** carries security fixes, among them Brotli 1.2.1
+  (CVE-2026-111497) and hardening across the decoder. jxl-thumb runs libjxl on
+  every `.jxl` Explorer shows, whoever made the file, so it takes them now.
+- **The same thumbnails.** On 51 files — the 16 masters of the README's
+  measurements, lossless and lossy modular files, alpha, gray, an animation, a
+  JPEG transcoded to JXL, a rotated file, a 120 px one, files with and without
+  jxl-photo's thumbnail box, two truncated ones — at 256, 768 and 1024 px, the
+  thumbnails are v0.2.2's pixel for pixel, with the same bytes read and the
+  same time. The file cut before its DC fails exactly as before.
+- Same licenses: the libjxl, Brotli, Highway and skcms texts in the 0.13.0
+  package are the ones already in `licenses/`.
 
 ---
 

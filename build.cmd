@@ -5,9 +5,9 @@ rem official libjxl static package once into deps\ and checks its SHA-256.
 setlocal
 
 rem --- settings -------------------------------------------------------------
-set "LIBJXL_VERSION=0.12.0"
+set "LIBJXL_VERSION=0.13.0"
 set "LIBJXL_ZIP=jxl-x64-windows-static.7z"
-set "LIBJXL_SHA256=ff147dc7ac4ce55392974ccc70f2a8a8ec0eff3ae28529b072258b66c8f01ab2"
+set "LIBJXL_SHA256=d97b753ffcd0f992db2ab3ef7e896a6ba425cafe8332e5e6df6376f70e2b9ada"
 rem ---------------------------------------------------------------------------
 
 set "ROOT=%~dp0"
